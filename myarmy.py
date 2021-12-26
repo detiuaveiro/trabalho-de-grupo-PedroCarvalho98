@@ -70,14 +70,13 @@ class Environment:
 
         # uncomment next lines to use numpy array instead of array of array of array (3D array)
         # IT IS RECOMMENDED for simplicity
-        # arrays to numpy converstion:  self.board[y][x][idx] => self.board[x,y,idx] 
+        # arrays to numpy converstion: self.board[y][x][idx] => self.board[x,y,idx]
         #
-        #self.board = np.swapaxes(np.array(json.loads(board)),0,1)
-        #debug(self.board.shape)
+        self.board = np.swapaxes(np.array(json.loads(board)),0,1)
+        debug(self.board.shape)
         
 
     def play(self): # agent move, call playActions only ONCE
-
         actions = []
         print("Current production per turn is:", self.production)
         print("Current building cost is:", self.upgrade_cost)
@@ -88,21 +87,59 @@ class Environment:
             self.resources -= self.upgrade_cost
 
         # only buy ranged
-        #default_cell_s_type = self.board[VCENTER][1][0]   # in numpy would be self.board[1,VCENTER,0]
-        #if self.resources>=SOLDIER_RANGED_COST and default_cell_s_type in [EMPTY_CELL, ALLIED_SOLDIER_RANGED]:
-        #    buyamount = self.resources//SOLDIER_RANGED_COST
-        #    actions.append( recruitSoldiers(ALLIED_SOLDIER_RANGED, self.resources//SOLDIER_RANGED_COST) )
-        #    self.resources -= buyamount*SOLDIER_RANGED_COST
+        default_cell_s_type = self.board[1,VCENTER,0]  # in numpy would be self.board[1,VCENTER,0]
+        if self.resources>=SOLDIER_MELEE_COST and default_cell_s_type in [EMPTY_CELL, ALLIED_SOLDIER_MELEE]:
+           # buyamount = self.resources//SOLDIER_RANGED_COST
+           print(str('\n')+str(self.building_level)+str("\n"))
+           buyamount=self.building_level
+           actions.append( recruitSoldiers(ALLIED_SOLDIER_MELEE, buyamount) )
+           self.resources -= buyamount*SOLDIER_MELEE_COST
 
+
+
+        # for r in range(1,4):
+        #     origincell = self.board[r, VCENTER]
+        #     targetcell = self.board[r+1, VCENTER]
+        #     soldier_type, soldier_amount = origincell
+        #     if soldier_type in [EMPTY_CELL, origincell[0]] and soldier_amount > 0 :  # if target cell is empty or if contains same type troops
+        #         moveaction = moveSoldiers((r, VCENTER), (r+1, VCENTER), soldier_amount)
+        #         actions.append(moveaction)
 
 
         # example how to move troops from (4,0) to (4,1), step by step
-        #origincell = self.board[0][4]   #in case of numpy array would be self.board[4,0]
-        #targetcell = self.board[1][4]   #in case of numpy array would be self.board[4,1]
-        #soldier_type, soldier_amount = targetcell
-        #if soldier_type in [EMPTY_CELL, origincell[0]]:  # if target cell is empty or if contains same type troops 
-        #    moveaction = moveSoldiers((4,0),(4,1),soldier_amount)
-        #    actions.append(  moveaction )
+        # origincell = self.board[0][4]   #in case of numpy array would be self.board[4,0]
+        # targetcell = self.board[1][4]   #in case of numpy array would be self.board[4,1]
+        for r in range(0,5):
+            origincell=self.board[4,r]
+            targetcell = self.board[4, r+1]
+            soldier_type, soldier_amount = origincell
+            if soldier_type in [EMPTY_CELL, origincell[0]] and soldier_amount>0:  # if target cell is empty or if contains same type troops
+                moveaction = moveSoldiers((4,r),(4,r+1),soldier_amount)
+                actions.append(  moveaction )
+
+        for r in range(10,5,-1):
+            origincell=self.board[4,r]
+            targetcell = self.board[4, r-1]
+            soldier_type, soldier_amount = origincell
+            if soldier_type in [EMPTY_CELL, origincell[0]] and soldier_amount>0:  # if target cell is empty or if contains same type troops
+                moveaction = moveSoldiers((4,r),(4,r-1),soldier_amount)
+                actions.append(  moveaction )
+
+        for r in range(0,5):
+            origincell=self.board[5,r]
+            targetcell = self.board[5, r+1]
+            soldier_type, soldier_amount = origincell
+            if soldier_type in [EMPTY_CELL, origincell[0]] and soldier_amount>0:  # if target cell is empty or if contains same type troops
+                moveaction = moveSoldiers((5,r),(5,r+1),soldier_amount)
+                actions.append(  moveaction )
+
+        for r in range(10,5,-1):
+            origincell=self.board[5,r]
+            targetcell = self.board[5, r-1]
+            soldier_type, soldier_amount = origincell
+            if soldier_type in [EMPTY_CELL, origincell[0]] and soldier_amount>0:  # if target cell is empty or if contains same type troops
+                moveaction = moveSoldiers((5,r),(5,r-1),soldier_amount)
+                actions.append(  moveaction )
 
         playActions(actions)
         
