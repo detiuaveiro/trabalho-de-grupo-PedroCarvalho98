@@ -1,4 +1,5 @@
 import sys
+from typing import Tuple
 
 
 from actions import *
@@ -7,7 +8,7 @@ from utils import _PRINT
 
 import json
 import numpy as np
-
+import math
 
 DEBUG_FILE = "client_debug.txt"
 
@@ -74,13 +75,136 @@ class Environment:
         #
         self.board = np.swapaxes(np.array(json.loads(board)),0,1)
         debug(self.board.shape)
-        
+
+    #----------------------------------
+
+    def verifyproximity(self, my_position):
+        # --------FUNCTION-----------
+        # > def verifyproximity()
+        # --------DESCRIPTION--------
+        # This funtion verifies the proximity of enemies in relation to the current cell.
+        # If an enemy is closer than 4 cells of distance, it returns a flag to indicate that there are enemies nearby.
+        # --------INPUTS-------------
+        # > my_position (from a certain entity)
+        # --------OUTPUTS------------
+        # > flag proximity_enemies
+        # ---------------------------
+
+        enemies = np.where(self.board[:,:,0]==ENEMY_SOLDIER_MELEE)
+        enemies = [(a,b) for a,b in zip(enemies[0],enemies[1])]
+
+        #print("My Position:", my_position)
+
+        for i in range(len(enemies)):
+            enemy_position = enemies[i]
+            #print("Enemy Position:", enemy_position)
+            difference = (my_position[0] - enemy_position[0], my_position[1] - enemy_position[1])
+            if abs(difference[0])<=4 and abs(difference[1])<=4:
+                proximity_enemies = 1
+            else:
+                proximity_enemies = None
+
+        return proximity_enemies
+
+    #----------------------------------
+
+    #--------ACTION FUNCTIONS---------- 
+
+   
+    def ActionRange(self,entities,flags):
+        # --------FUNCTION-----------
+        # > def ActionRange()
+        # --------DESCRIPTION--------
+        # This function makes the ranged move to the cell above, near the wall (height = 0).
+        # If they are on the cell explained above, they only move to the right to attack the enemies.
+        # --------INPUTS-------------
+        # > entities, flags
+        # --------OUTPUTS------------
+        # > moveaction
+        # ---------------------------  
+
+        if entities[0][1]!=0: #Sobe sempre os Ranged
+            here=entities[0]
+            togo=(entities[0][0],entities[0][1]-1)
+            soldamount=entities[1][1]
+            moveaction = moveSoldiers(here,togo,soldamount)
+            return moveaction
+        #Mover Ranged para direita    
+        if entities[0][1]==0 and\
+        (self.board[entities[0][0]+1,entities[0][1],0]==ALLIED_SOLDIER_RANGED or self.board[entities[0][0]+1,entities[0][1],0]==None): #Adicionar Proximity Flag
+            here=entities[0]
+            togo=(entities[0][0]+1,entities[0][1])
+            soldamount=math.ceil(entities[1][1]/3)
+            if soldamount<=1:
+                pass
+            moveaction = moveSoldiers(here,togo,soldamount)
+            return moveaction
+        return None
+    
+    #---------------------------------- 
+
+    def ActionMelee(self,entities,flags):
+        # --------FUNCTION-----------
+        # > def ActionMelee()
+        # --------DESCRIPTION--------
+        # This function makes the melee move to the cell on the bottom, near the wall (height = 0).
+        # --------INPUTS-------------
+        # > entities, flags
+        # --------OUTPUTS------------
+        # > moveaction
+        # --------------------------- 
+
+        if entities[0][1]!=10: #Descer Sempre os Melee
+            here=entities[0]
+            togo=(entities[0][0],entities[0][1]+1)
+            soldamount=entities[1][1]
+            moveaction = moveSoldiers(here,togo,soldamount)
+            return moveaction
+        return None
+
+    #----------------------------------
 
     def play(self): # agent move, call playActions only ONCE
+        # --------FUNCTION-----------
+        # > def play()
+        # --------DESCRIPTION--------
+        # Makes the agent move.
+        # --------INPUTS-------------
+        # > None
+        # --------OUTPUTS------------
+        # > None
+        # --------------------------- 
+
+        #----------------------------------
+        # TO-DO FLAGS
+        flags=dict()
+        # flag to verify if the cell to go is empty (first - empty, second - type)
+        available_cell = [None,None]
+        
+        # flag to verify if there are sufficient resources to buy base upgrade
+        resources_qntbase = 0
+        
+        # flag to verify if there are sufficient resources to buy x melees
+        resources_qntmelees = 0
+        
+        # flag to verify if there are sufficient resources to buy x ranges
+        resources_qntranges = 0
+        
+        # flag to verify the progress of the game (early game, mid game, late game)
+        game_progress = None
+
+        # flag to verify the proximity of enemies for ranges and other for melees (first - ranges, second - melees)    
+        proximity_enemies= None
+        
+        # flag for retard (20000 max)
+        retard = 0
+
+        #----------------------------------
+        # INITIALIZATION
+
         actions = []
         print("Current production per turn is:", self.production)
         print("Current building cost is:", self.upgrade_cost)
-
         if self.resources >= self.upgrade_cost: # upgrade building
 
             actions.append(upgradeBase())
@@ -95,62 +219,41 @@ class Environment:
            actions.append( recruitSoldiers(ALLIED_SOLDIER_MELEE, buyamount) )
            self.resources -= buyamount*SOLDIER_MELEE_COST
 
-        enemy=np.where(self.board[:,:,0]==ENEMY_SOLDIER_MELEE)
-        enemy=[(a,b) for a,b in zip(enemy[0],enemy[1])]
-        print(enemy)
+        #----------------------------------
+        # MAP SEARCH
 
+        print("Entity: ")
+        entities=np.where(self.board[:,:,0]!=None)
+        entities=[[(a,b)] for a,b in zip(entities[0],entities[1])]
+        #print(entities)
+        for i in range(len(entities)):
+            soldtype=self.board[entities[i][0][0],entities[i][0][1],0]
+            quant=self.board[entities[i][0][0],entities[i][0][1],1]
+            entities[i].append((soldtype,quant))
+        print("Entity results:", entities)
 
-        for y in range(HEIGHT):
-            for x in range(WIDTH):
-                mapcell=self.board[x,y]
+        #-----------------------------------
+        # ACTIONS
 
-        # for r in range(1,4):
-        #     origincell = self.board[r, VCENTER]
-        #     targetcell = self.board[r+1, VCENTER]
-        #     soldier_type, soldier_amount = origincell
-        #     if soldier_type in [EMPTY_CELL, origincell[0]] and soldier_amount > 0 :  # if target cell is empty or if contains same type troops
-        #         moveaction = moveSoldiers((r, VCENTER), (r+1, VCENTER), soldier_amount)
-        #         actions.append(moveaction)
-
-
-        # example how to move troops from (4,0) to (4,1), step by step
-        # origincell = self.board[0][4]   #in case of numpy array would be self.board[4,0]
-        # targetcell = self.board[1][4]   #in case of numpy array would be self.board[4,1]
-        for r in range(0,5):
-            origincell=self.board[4,r]
-            targetcell = self.board[4, r+1]
-            soldier_type, soldier_amount = origincell
-            if soldier_type in [EMPTY_CELL, origincell[0]] and soldier_amount>0:  # if target cell is empty or if contains same type troops
-                moveaction = moveSoldiers((4,r),(4,r+1),soldier_amount)
-                actions.append(  moveaction )
-
-        for r in range(10,5,-1):
-            origincell=self.board[4,r]
-            targetcell = self.board[4, r-1]
-            soldier_type, soldier_amount = origincell
-            if soldier_type in [EMPTY_CELL, origincell[0]] and soldier_amount>0:  # if target cell is empty or if contains same type troops
-                moveaction = moveSoldiers((4,r),(4,r-1),soldier_amount)
-                actions.append(  moveaction )
-
-        for r in range(0,5):
-            origincell=self.board[5,r]
-            targetcell = self.board[5, r+1]
-            soldier_type, soldier_amount = origincell
-            if soldier_type in [EMPTY_CELL, origincell[0]] and soldier_amount>0:  # if target cell is empty or if contains same type troops
-                moveaction = moveSoldiers((5,r),(5,r+1),soldier_amount)
-                actions.append(  moveaction )
-
-        for r in range(10,5,-1):
-            origincell=self.board[5,r]
-            targetcell = self.board[5, r-1]
-            soldier_type, soldier_amount = origincell
-            if soldier_type in [EMPTY_CELL, origincell[0]] and soldier_amount>0:  # if target cell is empty or if contains same type troops
-                moveaction = moveSoldiers((5,r),(5,r-1),soldier_amount)
-                actions.append(  moveaction )
+        for i in range(len(entities)):
+            my_position = entities[i][0]
+            self.verifyproximity(my_position)
+            if entities[i][1][0]==ALLIED_SOLDIER_RANGED:
+                moveaction=self.ActionRange(entities[i],flags)
+                if moveaction == None:
+                    continue
+                actions.append(moveaction)
+            elif entities[i][1][0]==ALLIED_SOLDIER_MELEE:
+                moveaction=self.ActionMelee(entities[i],flags)
+                if moveaction == None:
+                    continue
+                actions.append(moveaction)
 
         playActions(actions)
-        
 
+    #----------------------------------
+
+    
 def main():
     
     open(DEBUG_FILE, 'w').close()
