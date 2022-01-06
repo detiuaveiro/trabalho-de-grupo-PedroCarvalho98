@@ -88,14 +88,21 @@ class Environment:
 
         # only buy ranged
         default_cell_s_type = self.board[1,VCENTER,0]  # in numpy would be self.board[1,VCENTER,0]
-        if self.resources>=SOLDIER_MELEE_COST and default_cell_s_type in [EMPTY_CELL, ALLIED_SOLDIER_MELEE]:
+        if self.resources>=SOLDIER_MELEE_COST*(self.building_level+1) and default_cell_s_type in [EMPTY_CELL, ALLIED_SOLDIER_MELEE]:
            # buyamount = self.resources//SOLDIER_RANGED_COST
            print(str('\n')+str(self.building_level)+str("\n"))
-           buyamount=self.building_level
+           buyamount=self.building_level+1
            actions.append( recruitSoldiers(ALLIED_SOLDIER_MELEE, buyamount) )
            self.resources -= buyamount*SOLDIER_MELEE_COST
 
+        enemy=np.where(self.board[:,:,0]==ENEMY_SOLDIER_MELEE)
+        enemy=[(a,b) for a,b in zip(enemy[0],enemy[1])]
+        print(enemy)
 
+
+        for y in range(HEIGHT):
+            for x in range(WIDTH):
+                mapcell=self.board[x,y]
 
         # for r in range(1,4):
         #     origincell = self.board[r, VCENTER]
