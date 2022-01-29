@@ -54,7 +54,11 @@ class Environment:
         self.base_prod = base_prod
         self.board = [[None]*WIDTH for h in range(HEIGHT)]
         self.turn = 1
-        self.retard = 0
+        self.retard_now = 0
+        self.retard_needed = 0
+        self.enemies_next5rounds = []
+        self.retard_max = 0
+        self.watchrounds = 5
         self.spawn_soldiers = 2 
         playActions([])
 
@@ -268,23 +272,26 @@ class Environment:
         last_collum = self.board[WIDTH-1,:]
         for a in last_collum:
             if a[0] == ALLIED_SOLDIER_RANGED or a[0] == ALLIED_SOLDIER_MELEE:
-                self.retard += a[1]/5.0
-        self.spawn_soldiers = 2 + int((max(self.turn - self.retard, self.turn/3)**2)/65)         
+                self.retard_now += a[1]/5.0 # Quantity
+        self.spawn_soldiers = 2 + int((max(self.turn - self.retard_now, self.turn/3)**2)/65)
+        self.retard_max = (2/3) * self.turn
+        self.retard_needed = self.retard_max - self.retard_now
+        for k in range(self.watchrounds):
+            self.enemies_next5rounds.append(2 + int((max(self.turn+k - self.retard_now, (self.turn+k)/3)**2)/65))
 
-        print("Current retard: ", self.retard)
+        print("Current retard: ", self.retard_now)
         print("Current enemies spawning: ", self.spawn_soldiers)
-        retard_max = (10/3) * self.turn
+        print("Max retard: ", self.retard_max)
+        print("Retard Needed: ", self.retard_needed)
+        print("Number of spawn enemies spawning in the next 5 rounds: ", self.enemies_next5rounds)
+
 
         #-----------------------------
 
         #----------ECONOMY------------
 
         #---------EARLY GAME----------
-        
-        #----------ECONOMY------------
-
-        #---------EARLY GAME----------
-        # Untill base level <= 8 upgrade base if possible
+        # Untill base level <= 7 upgrade base if possible
         if self.building_level <= 6  or self.resources >= 3*self.upgrade_cost:
             if self.resources >= self.upgrade_cost:     # flag
                 actions.append(upgradeBase())
@@ -292,18 +299,55 @@ class Environment:
         #-----------------------------
 
         #----------MID GAME-----------
-        # Only buy ranged from base level > 8 untill we have 100 ranged in front of the base
-        front_base_type = self.board[1,VCENTER,0]
-        front_base_quant = self.board[1,VCENTER,1]
-        if self.building_level > 6 and front_base_type in [EMPTY_CELL, ALLIED_SOLDIER_RANGED] and self.resources>=SOLDIER_RANGED_COST and front_base_quant <= 0:
-            ranges_amount = (self.resources//SOLDIER_RANGED_COST)
-            actions.append(recruitSoldiers(ALLIED_SOLDIER_RANGED, ranges_amount))
-            self.resources -= ranges_amount * SOLDIER_RANGED_COST
+        # front_base_type = self.board[1,VCENTER,0]
+        # front_base_quant = self.board[1,VCENTER,1]
+        # if self.building_level > 6 and front_base_type in [EMPTY_CELL, ALLIED_SOLDIER_RANGED] and self.resources>=SOLDIER_RANGED_COST and front_base_quant <= 0:
+        #     ranges_amount = (self.resources//SOLDIER_RANGED_COST)
+        #     actions.append(recruitSoldiers(ALLIED_SOLDIER_RANGED, ranges_amount))
+        #     self.resources -= ranges_amount * SOLDIER_RANGED_COST
             #melees_amount = (self.resources//SOLDIER_MELEE_COST)
             #if melees_amount > 8:
             #    melees_amount == 8
             #actions.append(recruitSoldiers(ALLIED_SOLDIER_MELEE, melees_amount, (0, VCENTER+1)))
-            #self.resources -= melees_amount * SOLDIER_MELEE_COST            
+            #self.resources -= melees_amount * SOLDIER_MELEE_COST 
+
+        front_base_type = self.board[1,VCENTER,0]
+        front_base_quant = self.board[1,VCENTER,1]
+        # Buy enough ranges to kill my enemies from 5 rounds in the future
+        if self.building_level > 6 and self.spawn_soldiers < 850 and front_base_type in [EMPTY_CELL, ALLIED_SOLDIER_RANGED] and self.resources>=SOLDIER_RANGED_COST:
+            ranges_amount= math.ceil(self.enemies_next5rounds[4]*2/3)
+            if ranges_amount > (self.resources//SOLDIER_RANGED_COST):
+                actions.append(recruitSoldiers(ALLIED_SOLDIER_RANGED, (self.resources//SOLDIER_RANGED_COST)))
+                self.resources-= (self.resources//SOLDIER_RANGED_COST) * SOLDIER_RANGED_COST
+            else:
+                actions.append(recruitSoldiers(ALLIED_SOLDIER_RANGED, ranges_amount))
+                self.resources -= ranges_amount * SOLDIER_RANGED_COST
+            
+            # Always buy Melees (max = 20 -> to be invisible)
+            melees_amount=max(self.turn//100 + 8, 20)
+            if melees_amount*SOLDIER_MELEE_COST > self.resources:
+                actions.append(recruitSoldiers(ALLIED_SOLDIER_MELEE, melees_amount,(0, VCENTER+1)))
+                self.resources -= melees_amount * SOLDIER_MELEE_COST
+            elif self.resources>SOLDIER_MELEE_COST:
+                actions.append(recruitSoldiers(ALLIED_SOLDIER_MELEE, (self.resources//SOLDIER_MELEE_COST),(0, VCENTER+1)))
+                self.resources-= (self.resources//SOLDIER_MELEE_COST) * SOLDIER_MELEE_COST
+
+            # See if we have resources for anything
+            nr_of_melee=self.resources//SOLDIER_MELEE_COST
+            nr_of_ranged=self.resources//SOLDIER_RANGED_COST
+            nr_of_upgrade=self.resources//self.upgrade_cost
+
+            # See we are "Dominating"
+            if self.retard_needed < -(2/3) * (self.turn+2):
+                #Give priority to base upgrade
+                if self.resources > self.upgrade_cost:
+                    actions.append(upgradeBase())
+                    self.resources -= self.upgrade_cost
+            else:
+                #Buy enough ranged to get more retard
+                if 
+            
+            # Check if retard enough to upgrade base and be safe
         #-----------------------------
         
         # When we have 100 ranges in front of base buy more ranges to the cell over the base
@@ -364,6 +408,7 @@ class Environment:
 
         playActions(actions)
         self.turn += 1
+        self.enemies_next5rounds = []
         #-----------------------------
         
 #-------------------------------
