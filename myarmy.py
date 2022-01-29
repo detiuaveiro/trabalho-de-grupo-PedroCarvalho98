@@ -159,7 +159,7 @@ class Environment:
                 enemies.append(target[1])
         print(enemies)
 
-        if entities[0]== (1,VCENTER) or entities[0]==(1,VCENTER-1) or entities[0]== (0,VCENTER-1) :
+        if entities[0]== (1,VCENTER) or entities[0]== (0,VCENTER-1) :
             return None
         else:
             if entities[0][1]!=0: #Caso não esteja no topo da board
@@ -193,6 +193,8 @@ class Environment:
                 if sendamount<=0:
                     return None
                 moveaction = moveSoldiers(here,togo,sendamount)
+                if entities[0][0]+1==WIDTH-1:
+                    self.retard_now+=sendamount/5
                 return moveaction
         return None
 
@@ -215,7 +217,7 @@ class Environment:
             moveaction = moveSoldiers(here,togo,soldamount)
             if self.turn < 1 or self.turn>8:
                 return moveaction
-        if entities[0][1]==10:
+        if entities[0][1]==10: #Melee para a direita
             here=entities[0]
             togo=(entities[0][0]+1,entities[0][1])
             soldamount=entities[1][1]
@@ -225,6 +227,8 @@ class Environment:
             if soldamount<20:
                 sendamount=soldamount
             moveaction = moveSoldiers(here,togo,sendamount)
+            if entities[0][0]+1==WIDTH-1:
+                    self.retard_now+=sendamount/5
             if self.turn < 1 or self.turn>8:
                 return moveaction
         return None
@@ -269,10 +273,10 @@ class Environment:
         #-----------------------------
         
         #-------Calculations----------
-        last_collum = self.board[WIDTH-1,:]
-        for a in last_collum:
-            if a[0] == ALLIED_SOLDIER_RANGED or a[0] == ALLIED_SOLDIER_MELEE:
-                self.retard_now += a[1]/5.0 # Quantity
+        # last_collum = self.board[WIDTH-2,:]
+        # for a in range(len(last_collum)):
+        #     if self.board[WIDTH-2,a][0] == ALLIED_SOLDIER_RANGED or self.board[WIDTH-2,a][0] == ALLIED_SOLDIER_MELEE and self.board[WIDTH-1,a][0] != ENEMY_SOLDIER_MELEE:
+        #         self.retard_now += self.board[WIDTH-2,a][1]/5.0 # Quantity
         self.spawn_soldiers = 2 + int((max(self.turn - self.retard_now, self.turn/3)**2)/65)
         self.retard_max = (2/3) * self.turn
         self.retard_needed = self.retard_max - self.retard_now
@@ -299,59 +303,73 @@ class Environment:
         #-----------------------------
 
         #----------MID GAME-----------
-        # front_base_type = self.board[1,VCENTER,0]
-        # front_base_quant = self.board[1,VCENTER,1]
-        # if self.building_level > 6 and front_base_type in [EMPTY_CELL, ALLIED_SOLDIER_RANGED] and self.resources>=SOLDIER_RANGED_COST and front_base_quant <= 0:
-        #     ranges_amount = (self.resources//SOLDIER_RANGED_COST)
-        #     actions.append(recruitSoldiers(ALLIED_SOLDIER_RANGED, ranges_amount))
-        #     self.resources -= ranges_amount * SOLDIER_RANGED_COST
-            #melees_amount = (self.resources//SOLDIER_MELEE_COST)
-            #if melees_amount > 8:
-            #    melees_amount == 8
-            #actions.append(recruitSoldiers(ALLIED_SOLDIER_MELEE, melees_amount, (0, VCENTER+1)))
-            #self.resources -= melees_amount * SOLDIER_MELEE_COST 
 
         front_base_type = self.board[1,VCENTER,0]
         front_base_quant = self.board[1,VCENTER,1]
         # Buy enough ranges to kill my enemies from 5 rounds in the future
         if self.building_level > 6 and self.spawn_soldiers < 850 and front_base_type in [EMPTY_CELL, ALLIED_SOLDIER_RANGED] and self.resources>=SOLDIER_RANGED_COST:
-            ranges_amount= math.ceil(self.enemies_next5rounds[4]*2/3)
-            if ranges_amount > (self.resources//SOLDIER_RANGED_COST):
-                actions.append(recruitSoldiers(ALLIED_SOLDIER_RANGED, (self.resources//SOLDIER_RANGED_COST)))
-                self.resources-= (self.resources//SOLDIER_RANGED_COST) * SOLDIER_RANGED_COST
-            else:
-                actions.append(recruitSoldiers(ALLIED_SOLDIER_RANGED, ranges_amount))
-                self.resources -= ranges_amount * SOLDIER_RANGED_COST
             
             # Always buy Melees (max = 20 -> to be invisible)
-            melees_amount=max(self.turn//100 + 8, 20)
-            if melees_amount*SOLDIER_MELEE_COST > self.resources:
+            melees_amount=min(self.turn//100 + 8, 20)
+            if melees_amount < (self.resources//SOLDIER_MELEE_COST):
                 actions.append(recruitSoldiers(ALLIED_SOLDIER_MELEE, melees_amount,(0, VCENTER+1)))
                 self.resources -= melees_amount * SOLDIER_MELEE_COST
             elif self.resources>SOLDIER_MELEE_COST:
                 actions.append(recruitSoldiers(ALLIED_SOLDIER_MELEE, (self.resources//SOLDIER_MELEE_COST),(0, VCENTER+1)))
+                melees_amount=(self.resources//SOLDIER_MELEE_COST)
                 self.resources-= (self.resources//SOLDIER_MELEE_COST) * SOLDIER_MELEE_COST
+            
+            ranges_amount= math.ceil(self.enemies_next5rounds[4]*1/3)
+            if ranges_amount > (self.resources//SOLDIER_RANGED_COST):
+                actions.append(recruitSoldiers(ALLIED_SOLDIER_RANGED, (self.resources//SOLDIER_RANGED_COST)))
+                self.resources -= (self.resources//SOLDIER_RANGED_COST) * SOLDIER_RANGED_COST
+            elif self.resources>SOLDIER_RANGED_COST:
+                actions.append(recruitSoldiers(ALLIED_SOLDIER_RANGED, ranges_amount))
+                self.resources -= ranges_amount * SOLDIER_RANGED_COST
+            
 
             # See if we have resources for anything
-            nr_of_melee=self.resources//SOLDIER_MELEE_COST
+
             nr_of_ranged=self.resources//SOLDIER_RANGED_COST
             nr_of_upgrade=self.resources//self.upgrade_cost
 
             # See we are "Dominating"
             if self.retard_needed < -(2/3) * (self.turn+2):
                 #Give priority to base upgrade
-                if self.resources > self.upgrade_cost:
+                if self.resources > self.upgrade_cost and self.building_level < 16:
                     actions.append(upgradeBase())
                     self.resources -= self.upgrade_cost
+                else:
+                    if nr_of_ranged > 0:
+                        actions.append(recruitSoldiers(ALLIED_SOLDIER_RANGED, nr_of_ranged))
+                        self.resources -= nr_of_ranged * SOLDIER_RANGED_COST
+                    
+                    nr_of_melee=min(self.resources//SOLDIER_MELEE_COST, 20) - melees_amount
+                    if nr_of_melee > 0:
+                        actions.append(recruitSoldiers(ALLIED_SOLDIER_MELEE, nr_of_melee,(0, VCENTER+1)))
+                        self.resources -= nr_of_melee * SOLDIER_MELEE_COST
             else:
                 #Buy enough ranged to get more retard
-                if 
-            
-            # Check if retard enough to upgrade base and be safe
+                if nr_of_ranged > 0:
+                    actions.append(recruitSoldiers(ALLIED_SOLDIER_RANGED, nr_of_ranged))
+                    self.resources -= nr_of_ranged * SOLDIER_RANGED_COST
+                    
+                nr_of_melee=min(self.resources//SOLDIER_MELEE_COST, 20) - melees_amount
+                if nr_of_melee > 0:
+                    actions.append(recruitSoldiers(ALLIED_SOLDIER_MELEE, nr_of_melee,(0, VCENTER+1)))
+                    self.resources -= nr_of_melee * SOLDIER_MELEE_COST
+
+            if self.board[1, VCENTER,1]>0:
+                pos = (1, VCENTER)
+                to = (1, VCENTER-1)
+                amount = self.board[1, VCENTER, 1]
+                if amount> math.ceil(self.enemies_next5rounds[3]*2/3):
+                    actions.append(moveSoldiers(pos, to, amount))
         #-----------------------------
         
-        # When we have 100 ranges in front of base buy more ranges to the cell over the base
-        if self.building_level > 6 and front_base_type in [EMPTY_CELL, ALLIED_SOLDIER_RANGED] and self.resources>=SOLDIER_RANGED_COST and front_base_quant > 0:
+        #----------LATE GAME-----------
+        if (self.building_level >= 17 and self.spawn_soldiers >= 850) and front_base_type in [EMPTY_CELL, ALLIED_SOLDIER_RANGED] and self.resources>=SOLDIER_RANGED_COST:
+            return None
             ranges_amount = ((self.resources-SOLDIER_MELEE_COST*5)//SOLDIER_RANGED_COST)
             actions.append(recruitSoldiers(ALLIED_SOLDIER_RANGED, ranges_amount, (1, VCENTER)))
             self.resources -= ranges_amount * SOLDIER_RANGED_COST
@@ -359,21 +377,7 @@ class Environment:
             to = (1, VCENTER-1)
             amount  = front_base_quant - 0
             actions.append(moveSoldiers(pos, to, amount))
-
-        print(self.board[:,:,0]==ALLIED_SOLDIER_RANGED)
-
-        if self.board[1, VCENTER-1,1]>0:
-            pos = (1, VCENTER-1)
-            to = (1, VCENTER-2)
-            amount = self.board[1, VCENTER - 1, 1]
-            if amount>50:
-                actions.append(moveSoldiers(pos, to, 50))
-
-        if sum(self.board[self.board[:,:,0]==ALLIED_SOLDIER_RANGED,1]) > 150:
-            
-            melees_amount = 5
-            actions.append(recruitSoldiers(ALLIED_SOLDIER_MELEE, melees_amount, (0, VCENTER+1)))
-            self.resources -= melees_amount * SOLDIER_MELEE_COST   
+ 
         
         
         #-----------------------------
