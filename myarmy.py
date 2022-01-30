@@ -221,11 +221,13 @@ class Environment:
             here=entities[0]
             togo=(entities[0][0]+1,entities[0][1])
             soldamount=entities[1][1]
-            sendamount=20
+            # sendamount=20
+            sendamount=soldamount
             if soldamount<1:
                 return None
-            if soldamount<20:
-                sendamount=soldamount
+            # if soldamount<20:
+            #     sendamount=soldamount
+
             moveaction = moveSoldiers(here,togo,sendamount)
             if entities[0][0]+1==WIDTH-1:
                     self.retard_now+=sendamount/5
@@ -273,10 +275,7 @@ class Environment:
         #-----------------------------
         
         #-------Calculations----------
-        # last_collum = self.board[WIDTH-2,:]
-        # for a in range(len(last_collum)):
-        #     if self.board[WIDTH-2,a][0] == ALLIED_SOLDIER_RANGED or self.board[WIDTH-2,a][0] == ALLIED_SOLDIER_MELEE and self.board[WIDTH-1,a][0] != ENEMY_SOLDIER_MELEE:
-        #         self.retard_now += self.board[WIDTH-2,a][1]/5.0 # Quantity
+
         self.spawn_soldiers = 2 + int((max(self.turn - self.retard_now, self.turn/3)**2)/65)
         self.retard_max = (2/3) * self.turn
         self.retard_needed = self.retard_max - self.retard_now
@@ -307,10 +306,10 @@ class Environment:
         front_base_type = self.board[1,VCENTER,0]
         front_base_quant = self.board[1,VCENTER,1]
         # Buy enough ranges to kill my enemies from 5 rounds in the future
-        if self.building_level > 6 and self.spawn_soldiers < 850 and front_base_type in [EMPTY_CELL, ALLIED_SOLDIER_RANGED] and self.resources>=SOLDIER_RANGED_COST:
+        if self.building_level > 6 and front_base_type in [EMPTY_CELL, ALLIED_SOLDIER_RANGED] and self.resources>=SOLDIER_RANGED_COST:
             
             # Always buy Melees (max = 20 -> to be invisible)
-            melees_amount=min(self.turn//100 + 8, 20)
+            melees_amount=min(max(math.floor(self.building_level/0.8),self.turn//100+8), 20)
             if melees_amount < (self.resources//SOLDIER_MELEE_COST):
                 actions.append(recruitSoldiers(ALLIED_SOLDIER_MELEE, melees_amount,(0, VCENTER+1)))
                 self.resources -= melees_amount * SOLDIER_MELEE_COST
@@ -341,11 +340,17 @@ class Environment:
                     self.resources -= self.upgrade_cost
                 else:
                     if nr_of_ranged > 0:
+                        if nr_of_ranged > 500:
+                            #----------LATE GAME----------
+                            nr_of_ranged=500
                         actions.append(recruitSoldiers(ALLIED_SOLDIER_RANGED, nr_of_ranged))
                         self.resources -= nr_of_ranged * SOLDIER_RANGED_COST
                     
                     nr_of_melee=min(self.resources//SOLDIER_MELEE_COST, 20) - melees_amount
-                    if nr_of_melee > 0:
+                    if nr_of_melee >= 0:
+                        if nr_of_ranged>=500:
+                            #----------LATE GAME----------
+                            nr_of_melee=self.resources//SOLDIER_MELEE_COST
                         actions.append(recruitSoldiers(ALLIED_SOLDIER_MELEE, nr_of_melee,(0, VCENTER+1)))
                         self.resources -= nr_of_melee * SOLDIER_MELEE_COST
             else:
@@ -365,20 +370,6 @@ class Environment:
                 amount = self.board[1, VCENTER, 1]
                 if amount> math.ceil(self.enemies_next5rounds[3]*2/3):
                     actions.append(moveSoldiers(pos, to, amount))
-        #-----------------------------
-        
-        #----------LATE GAME-----------
-        if (self.building_level >= 17 and self.spawn_soldiers >= 850) and front_base_type in [EMPTY_CELL, ALLIED_SOLDIER_RANGED] and self.resources>=SOLDIER_RANGED_COST:
-            return None
-            ranges_amount = ((self.resources-SOLDIER_MELEE_COST*5)//SOLDIER_RANGED_COST)
-            actions.append(recruitSoldiers(ALLIED_SOLDIER_RANGED, ranges_amount, (1, VCENTER)))
-            self.resources -= ranges_amount * SOLDIER_RANGED_COST
-            pos = (1, VCENTER)
-            to = (1, VCENTER-1)
-            amount  = front_base_quant - 0
-            actions.append(moveSoldiers(pos, to, amount))
- 
-        
         
         #-----------------------------
 
